@@ -40,25 +40,27 @@ def m2_maven_info(root):
         yield info
 
 def nexus_upload(maven_info, repo_url, repo_id, credentials=None):
-    def encode_file(basename, attach_name=None):
-        if attach_name is None:
-            attach_name = basename
-        return ('file', (attach_name, open(path.join(maven_info['path'], basename), 'rb')) )
+    def encode_file(basename):
+        fullpath = path.join(maven_info['path'], basename)
+        return ('file', (basename, open(fullpath, 'rb'))) 
 
     def encode_form_kv(k,v):
         return (k, ('', v))
-
-    form_params = [ encode_file(maven_info['pom'], attach_name='pom.xml') ]
+    
             
     # append non-file fields to the form data
-    form_params.append(encode_form_kv('p', 'jar'))
-    form_params.append(encode_form_kv('hasPom', 'true'))
-    form_params.append(encode_form_kv('r', repo_id))
+    form_params = []
+ #   form_params.append(encode_form_kv('p', 'jar'))
+ #   form_params.append(encode_form_kv('hasPom', 'true'))
+ #   form_params.append(encode_form_kv('r', repo_id))
+
+    payload = { 'e':'jar', 'hasPom':'true', 'r':repo_id}
     auth = None
     if credentials is not None:
         auth = HTTPBasicAuth(credentials[0], credentials[1])
         
     # append file params
+    form_params.append(encode_file(maven_info['pom']))
     if 'jar' in maven_info:
         form_params.append(encode_file(maven_info['jar']))
     if 'source' in maven_info:
@@ -68,13 +70,12 @@ def nexus_upload(maven_info, repo_url, repo_id, credentials=None):
             
     # make the POST request to Nexus REST API
     full_url = '/'.join([repo_url, 'nexus/service/local/artifact/maven/content'])
-    req = requests.post(full_url, files=form_params, auth=auth)
+    req = requests.post(full_url, files=form_params, auth=auth, data=payload)
     if req.status_code > 299:
         print "Error communicating with Nexus!",
         print "code=" + str(req.status_code) + ", msg=" + req.content
 
                          
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Easily upload multiple artifacts to a remote Nexus server.')
@@ -82,8 +83,8 @@ if __name__ == '__main__':
                         help='list of repodirs to scan')
     parser.add_argument('--repo-id', type=str, help='Repository ID (in Nexus) to U/L to.', required=True)
     parser.add_argument('--auth',type=str, help='basicauth credentials in the form of username:password.')
-    parser.add_argument('--include-artifact', type=str, metavar='REGEX', help='regex to apply to artifactId')
-    parser.add_argument('--include-group', type=str, metavar='REGEX', help='regex to apply to groupId')
+#    parser.add_argument('--include-artifact', type=str, metavar='REGEX', help='regex to apply to artifactId')
+#    parser.add_argument('--include-group', type=str, metavar='REGEX', help='regex to apply to groupId')
     parser.add_argument('--repo-url', type=str, required=True, 
                         help="Nexus repo URL (e.g. http://localhost:8081)")
 
