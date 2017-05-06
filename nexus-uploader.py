@@ -59,7 +59,7 @@ def nexus_postform(minfo, repo_url, files, auth, form_params):
         print "Error communicating with Nexus!",
         print "code=" + str(req.status_code) + ", msg=" + req.content
     else:
-        print "Successfully submitted: " + last_attached_file(files, minfo)
+        print "Successfully uploaded: " + last_attached_file(files, minfo)
         
 
 def artifact_exists(repo_url, repo_id, auth, artifact_path):
@@ -144,8 +144,9 @@ if __name__ == '__main__':
     if args.include_artifact:
         iartifact_pat = re.compile(args.include_artifact)
 
-
+        
     for repo in args.repodirs:
+        print "Uploading content from [%s] to %s repo on %s" % (repo, args.repo_id, args.repo_url)
         for info in m2_maven_info(repo):
             # only include specific groups if group regex supplied
             if igroup_pat and not igroup_pat.search(info['g']):
