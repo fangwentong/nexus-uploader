@@ -7,6 +7,14 @@ import os.path as path
 import sys
 import argparse
 
+""""
+Allows mirroring local M2 repositories to a remote Nexus server with a single command.
+Supports: 
+   - uploading of common classifiers (sources, javadocs) if available
+   - using regex include pattern for artifactIds/groupIds
+   - recursively processing local repo, just point to the root 
+"""
+
 def list_files(root, ffilter = lambda x: True, recurse = True):
     """ list all files matching a filter in a given dir with optional recursion. """
     for root, subdirs, files in os.walk(root):
