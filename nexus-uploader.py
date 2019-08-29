@@ -3,7 +3,7 @@
 """"
 nexus-uploader.py
 
-Allows mirroring local M2 repositories to a remote Nexus 3 server with a single command.
+Allows mirroring local M2 repositories to a remote Nexus server with a single command.
 Supports: 
    - uploading of common classifiers (sources, javadocs) if available
    - using regex include pattern for artifactIds/groupIds
@@ -18,15 +18,23 @@ import os.path as path
 import sys
 import argparse
 
-def list_files(root, ffilter = lambda x: True, recurse = True):
+def list_files(root, ffilter = lambda x: True, recurse = False):
     """ list all files matching a filter in a given dir with optional recursion. """
-    for root, subdirs, files in os.walk(root):
+    for root1, subdirs, files in os.walk(root):
         for f in filter(ffilter, files):
-            yield path.join(root, f)
+            yield path.join(root1, f)
+        #print "subdirs: " + str(subdirs)
         if recurse:
             for sdir in subdirs:
-                for f in list_files(sdir, ffilter, recurse):
-                    yield f
+                for f1 in list_files(full_path(root1, sdir), ffilter, False):
+                    yield f1
+
+
+def full_path(root, directory):
+    if root.endswith(os.sep):
+        return root + directory
+    else:
+        return "%s/%s" % (root, directory)
 
 
 def m2_maven_info(root):
@@ -63,8 +71,8 @@ def nexus_postform(minfo, repo_url, repo_id, files, auth, form_params):
         
 
 def artifact_exists(repo_url, repo_id, auth, artifact_path):
-    url = "%s/service/rest/repository/browse/%s/%s" % (repo_url, repo_id, artifact_path)
-    #print "Checking for: " + url 
+    url = "%s/repository/%s/%s" % (repo_url, repo_id, artifact_path)
+    print "Checking for: " + url 
     req = requests.head(url, auth=auth)
     if req.status_code == 404:
         return False
@@ -132,8 +140,10 @@ if __name__ == '__main__':
 
     print "Repodirs: %s" % (args.repodirs)        
     repo = args.repodirs[0]
+    mmi = m2_maven_info(repo)
+    
     print "Uploading content from [%s] to %s repo on %s" % (repo, args.repo_id, args.repo_url)
-    for info in m2_maven_info(repo):
+    for info in mmi:
         # only include specific groups if group regex supplied
         if igroup_pat and not igroup_pat.search(info['g']):
             continue
@@ -144,7 +154,3 @@ if __name__ == '__main__':
             
         print "\nProcessing: %s" % (gav(info),)
         nexus_upload(info, args.repo_url, args.repo_id, credentials=tuple(args.auth.split(':')), force=args.force_upload)
-
-
-
-
