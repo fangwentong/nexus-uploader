@@ -27,7 +27,8 @@ The following command can be used to upload local m2 repositories to a Nexus ser
 ```bash
 nexus-uploader repodir1 [repodir2 repodir3] [--repo-url URL] [--repo-id ID] \
               [--auth USERNAME:PASSWORD] [--include-artifact REGEX] \
-              [--include-group REGEX] [--include-version REGEX] [--force-upload]
+              [--include-group REGEX] [--include-version REGEX] [--force-upload] \
+              [--limit K]  [--help]
 ```
 
 - `repodir`: Specifies the local m2 repository path to upload to Nexus server.
@@ -38,6 +39,7 @@ nexus-uploader repodir1 [repodir2 repodir3] [--repo-url URL] [--repo-id ID] \
 - `--include-group`: Applies the given regex to groupId.
 - `--include-version`: Applies the given regex to version.
 - `--force-upload`: Forces upload even if the artifact already exists on the server.
+- `--limit`: Only upload the latest k versions (by mtime) for each artifact, default no limit.
 
 ## Example
 
