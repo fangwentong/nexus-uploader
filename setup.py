@@ -17,5 +17,5 @@ setup(
     entry_points={
         'console_scripts': ['nexus-uploader=nexus_uploader.nexus_uploader:main']
     },
-    install_requires=[]
+    install_requires=['requests']
 )

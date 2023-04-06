@@ -1,14 +1,20 @@
 # Nexus Uploader
 
-nexus-uploader is a Python script that allows mirroring local M2 repositories to a remote Nexus server with a single
-command. It provides the following features:
+The `nexus-uploader` Python script allows for easy upload of local M2 repositories to a remote Nexus server with just
+one command. Some key features include:
 
-- uploading of common classifiers (sources, javadocs) if available
-- using regex include pattern for artifactIds/groupIds/versions
-- recursively processing local repo, just point to the root
-- only upload artifacts missing on the server (with the option to force upload if needed)
+- Uploading of common classifiers (sources, javadocs) if available
+- Using regex include pattern for artifactIds/groupIds/versions
+- Recursively processing local repo by just pointing to the root
+- Only uploading artifacts missing on the server (with an option to force upload if needed)
+
+This repository was originally forked
+from [Kshekhovtsova/nexus-uploader.py](https://gist.github.com/Kshekhovtsova/b8c8aca31b58e9f766df449e96ad8d3d)
+and [omnisis/nexus-uploader.py](https://gist.github.com/omnisis/9ecae6baf161d19206a5420bddffe1fc).
 
 ## Installation
+
+Use the following command to install `nexus-uploader` from this repository:
 
 ```bash
 pip3 install https://github.com/fangwentong/nexus-uploader/archive/master.zip
@@ -16,10 +22,12 @@ pip3 install https://github.com/fangwentong/nexus-uploader/archive/master.zip
 
 ## Usage
 
-```
-nexus-uploader repodir1 [repodir2 repodir3] [--repo-url URL] [--repo-id ID] 
-              [--auth USERNAME:PASSWORD] [--include-artifact REGEX] 
-              [--include-group REGEX] [--include-version REGEX] [--force-upload] 
+The following command can be used to upload local m2 repositories to a Nexus server:
+
+```bash
+nexus-uploader repodir1 [repodir2 repodir3] [--repo-url URL] [--repo-id ID] \
+              [--auth USERNAME:PASSWORD] [--include-artifact REGEX] \
+              [--include-group REGEX] [--include-version REGEX] [--force-upload]
 ```
 
 - `repodir`: Specifies the local m2 repository path to upload to Nexus server.
@@ -33,7 +41,8 @@ nexus-uploader repodir1 [repodir2 repodir3] [--repo-url URL] [--repo-id ID]
 
 ## Example
 
-Upload all artifacts from the local m2 repository to a Nexus server with the following configuration:
+The following command can be used to upload all artifacts from the local m2 repository to a Nexus server with the
+following configuration:
 
 ```bash
 nexus-uploader ~/.m2/repository \

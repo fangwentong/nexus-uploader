@@ -13,13 +13,14 @@ Supports:
 
 from __future__ import print_function
 
+import argparse
+import logging
+import sys
+from pathlib import Path
 from typing import Dict, Pattern
 
 import requests
 from requests.auth import HTTPBasicAuth
-from pathlib import Path
-import argparse
-import logging, sys
 
 
 class MavenInfo:
