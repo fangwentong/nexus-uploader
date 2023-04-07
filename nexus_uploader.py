@@ -146,8 +146,8 @@ class BaseNexusUploader:
             if k not in m:
                 m[k] = []
             heap = m[k]
-            if self.limit and len(heap) >= self.limit:
-                if heap[0] > MinHeapObj(maven_info):
+            if self.limit and len(heap) > self.limit:
+                if heap[0] < MinHeapObj(maven_info):
                     discarded = maven_info
                 else:
                     discarded = heapq.heapreplace(heap, MinHeapObj(maven_info)).val
