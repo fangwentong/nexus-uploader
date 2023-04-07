@@ -64,7 +64,7 @@ class BaseNexusUploader:
     types: List[str]
     limit: int
 
-    def __init__(self, m2_path="~/.m2/repository", repo_id=None, auth=None, include_artifact_pattern=None,
+    def __init__(self, m2_path='~/.m2/repository', repo_id=None, auth=None, include_artifact_pattern=None,
                  include_group_pattern=None, include_version_pattern=None, force_upload=False,
                  repo_url=None, classifiers=None, types=None, limit=None):
         self.m2_path = Path(m2_path).expanduser()
@@ -109,9 +109,9 @@ class BaseNexusUploader:
             for classifier in self.classifiers:
                 files = []
                 for filetype in self.types:
-                    classifier_file = jarfile.replace('.jar', f"-{classifier}.{filetype}")
+                    classifier_file = jarfile.replace('.jar', f'-{classifier}.{filetype}')
                     if Path(classifier_file).is_file():
-                        logging.info(f"Found {filetype}: {classifier_file}")
+                        logging.info(f'Found {filetype}: {classifier_file}')
                         files.append(Path(classifier_file).name)
                 if len(files) > 0:
                     info.classifiers[classifier] = files
@@ -122,10 +122,10 @@ class BaseNexusUploader:
         raise NotImplementedError
 
     def upload(self):
-        logging.info(f"Repodirs: {self.m2_path}")
+        logging.info(f'Repodirs: {self.m2_path}')
         maven_info_list = self.m2_maven_info()
 
-        logging.info(f"Uploading content from [{self.m2_path}] to {self.repo_id} repo on {self.repo_url}")
+        logging.info(f'Uploading content from [{self.m2_path}] to {self.repo_id} repo on {self.repo_url}')
         total = 0
         m = {}
         for maven_info in maven_info_list:
@@ -141,7 +141,7 @@ class BaseNexusUploader:
             if self.include_version_pattern and not self.include_version_pattern.search(maven_info.version):
                 continue
 
-            k = f"{maven_info.group_id}:{maven_info.artifact_id}"
+            k = f'{maven_info.group_id}:{maven_info.artifact_id}'
 
             if k not in m:
                 m[k] = []
@@ -151,7 +151,7 @@ class BaseNexusUploader:
                     discarded = maven_info
                 else:
                     discarded = heapq.heapreplace(heap, MinHeapObj(maven_info)).val
-                logging.info(f"Discard: {discarded} due to version limits")
+                logging.info(f'Discard: {discarded} due to version limits')
             else:
                 heapq.heappush(heap, MinHeapObj(maven_info))
                 total += 1
@@ -161,7 +161,7 @@ class BaseNexusUploader:
             for obj in heap:
                 maven_info = obj.val
                 current += 1
-                logging.info(f"\nProcessing: {maven_info}, {current}/{total}")
+                logging.info(f'\nProcessing: {maven_info}, {current}/{total}')
                 self._upload_single(maven_info)
 
 
@@ -174,32 +174,32 @@ class Nexus3Uploader(BaseNexusUploader):
         super().__init__(*args, **kwargs)
 
     def _nexus_post_form(self, minfo, files, form_params):
-        url = "%s/%s?repository=%s" % (self.repo_url, 'service/rest/v1/components', self.repo_id)
+        url = '%s/%s?repository=%s' % (self.repo_url, 'service/rest/v1/components', self.repo_id)
         req = requests.post(url, files=files, auth=self.auth, data=form_params)
         if req.status_code > 299:
-            logging.error("Error communicating with Nexus! url=" + url + ", code=" + str(
-                req.status_code) + ", msg=" + req.content.decode('utf-8'))
+            logging.error('Error communicating with Nexus! url=' + url + ', code=' + str(
+                req.status_code) + ', msg=' + req.content.decode('utf-8'))
         else:
-            logging.info("Successfully uploaded: %s", self.last_attached_file(files, minfo))
+            logging.info('Successfully uploaded: %s', self.last_attached_file(files, minfo))
 
     def _artifact_exists(self, artifact_path):
-        url = "%s/repository/%s/%s" % (self.repo_url, self.repo_id, artifact_path)
-        logging.info("Checking for: %s", url)
+        url = '%s/repository/%s/%s' % (self.repo_url, self.repo_id, artifact_path)
+        logging.info('Checking for: %s', url)
         req = requests.head(url, auth=self.auth)
         if req.status_code == 404:
             return False
         if req.status_code == 200:
-            logging.info("Will *NOT* upload %s, artifact already exists", artifact_path)
+            logging.info('Will *NOT* upload %s, artifact already exists', artifact_path)
             return True
         else:
             # for safety, return true if we cannot determine if file exists
-            logging.warning("Error checking status of: %s", artifact_path)
+            logging.warning('Error checking status of: %s', artifact_path)
             return True
 
     @staticmethod
     def last_attached_file(files, minfo):
-        m2_path = "%s/%s/%s" % (minfo.group_id.replace('.', '/'), minfo.artifact_id, minfo.version)
-        return "%s/%s" % (m2_path, files[-1][1][0])
+        m2_path = '%s/%s/%s' % (minfo.group_id.replace('.', '/'), minfo.artifact_id, minfo.version)
+        return '%s/%s' % (m2_path, files[-1][1][0])
 
     def _upload_single(self, maven_info):
         def encode_file(basename, num):
@@ -232,10 +232,10 @@ class Nexus3Uploader(BaseNexusUploader):
                     if not self.force_upload and self._artifact_exists(last_artifact):
                         files.pop()
                     else:
-                        payload.update({f"maven2.asset{extension_num}.extension": filename.split('.')[-1]})
-                        payload.update({f"maven2.asset{extension_num}.classifier": classifier})
+                        payload.update({f'maven2.asset{extension_num}.extension': filename.split('.')[-1]})
+                        payload.update({f'maven2.asset{extension_num}.classifier': classifier})
                         extension_num += 1
-                        logging.info(f"Appended file {filename} num = {extension_num - 1}")
+                        logging.info(f'Appended file {filename} num = {extension_num - 1}')
 
         self._nexus_post_form(maven_info, files=files, form_params=payload)
 
@@ -253,7 +253,7 @@ class MinHeapObj(object):
 def main():
     parser = argparse.ArgumentParser(description='Easily upload multiple artifacts to a remote Nexus server.')
     parser.add_argument('repodirs', type=str, nargs='+', help='list of repodirs to scan')
-    parser.add_argument('--repo-url', type=str, required=True, help="Nexus repo URL (e.g. http://localhost:8081)")
+    parser.add_argument('--repo-url', type=str, required=True, help='Nexus repo URL (e.g. http://localhost:8081)')
     parser.add_argument('--repo-id', type=str, help='Repository ID (in Nexus) to u/l to.', required=True)
     parser.add_argument('--auth', type=str, help='basicauth credentials in Nexus with the form of username:password.')
     parser.add_argument('--include-artifact', '-ia', type=str, metavar='REGEX', help='regex to apply to artifactId')
