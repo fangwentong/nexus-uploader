@@ -10,19 +10,20 @@ Supports:
    - only upload artifacts missing on server (with option to force if needed)
 """
 
-from __future__ import print_function
-
 import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Pattern, List
+from typing import Dict, Pattern, List, Tuple, Set
 
 import requests
 from requests.auth import HTTPBasicAuth
 import heapq
+from collections import defaultdict
+from functools import total_ordering
 
 
+@total_ordering
 class MavenInfo:
     """ a simple object to hold maven info. """
     path: Path
@@ -45,10 +46,14 @@ class MavenInfo:
         self.mtime = mtime
 
     def __str__(self):
-        return f'{self.group_id}:{self.artifact_id}:{self.version}'
+        return f'{self.group_id}:{self.artifact_id}:{self.version} ({self.path})'
 
     def __repr__(self):
-        return str(self)
+        return f'MavenInfo({self.path}, {self.group_id}, {self.artifact_id}, {self.version}, {self.mtime})'
+
+    def __lt__(self, other): return self.mtime < other.mtime
+
+    def __eq__(self, other): return self.mtime == other.mtime
 
 
 class BaseNexusUploader:
@@ -60,13 +65,15 @@ class BaseNexusUploader:
     include_version_pattern: Pattern
     force_upload: bool
     repo_url: str
-    classifiers: List[str]
-    types: List[str]
+    classifiers: Set[str]
+    types: Set[str]
     limit: int
 
-    def __init__(self, m2_path='~/.m2/repository', repo_id=None, auth=None, include_artifact_pattern=None,
-                 include_group_pattern=None, include_version_pattern=None, force_upload=False,
-                 repo_url=None, classifiers=None, types=None, limit=None):
+    def __init__(self, m2_path='~/.m2/repository', repo_id: str = None, auth: Tuple[str] = None,
+                 include_artifact_pattern: Pattern = None, include_group_pattern: Pattern = None,
+                 include_version_pattern: Pattern = None, force_upload: bool = False,
+                 repo_url: str = None, classifiers: List[str] = None, types: List[str] = None,
+                 limit: int = sys.maxsize):
         self.m2_path = Path(m2_path).expanduser()
         self.repo_id = repo_id
         self.auth = HTTPBasicAuth(*auth) if auth is not None else None
@@ -75,44 +82,42 @@ class BaseNexusUploader:
         self.include_version_pattern = include_version_pattern
         self.force_upload = force_upload
         self.repo_url = repo_url
-        self.classifiers = classifiers
-        self.types = types
+        self.classifiers = set(classifiers) if classifiers is not None else set()
+        self.types = set(types) if types is not None else set()
         self.limit = limit
 
     @staticmethod
-    def list_files(root, file_filter=lambda x: True, recurse=False):
+    def list_files(root, file_filter=lambda x: True):
         """ list all files matching a filter in a given dir with optional recursion. """
         for p in root.glob('**/*'):
             if p.is_file() and file_filter(p.name):
-                yield str(p)
-            elif recurse and p.is_dir():
-                yield from BaseNexusUploader.list_files(p, file_filter, False)
+                yield p
 
     def m2_maven_info(self):
         """ walks an on-disk m2 repo yielding a dict of pom/gav/jar info. """
-        for pom in BaseNexusUploader.list_files(self.m2_path, lambda x: x.endswith(".pom")):
-            rpath_parts = list(filter(bool, str(Path(pom).relative_to(self.m2_path)).split('/')))
+        for pom in self.list_files(self.m2_path, lambda x: x.endswith(".pom")):
+            rpath_parts = list(filter(bool, str(pom.relative_to(self.m2_path)).split('/')))
             info = MavenInfo(
-                path=Path(pom).parent,
-                pom=Path(pom).name,
+                path=pom.parent,
+                pom=pom.name,
                 group_id='.'.join(rpath_parts[:-3]),
                 artifact_id=rpath_parts[-3],
                 version=rpath_parts[-2],
-                mtime=Path(pom).stat().st_mtime,
+                mtime=pom.stat().st_mtime,
             )
             # check for jar
-            jarfile = pom.replace('.pom', '.jar')
-            if Path(jarfile).is_file():
-                info.jar = Path(jarfile).name
+            jarfile = pom.with_suffix('.jar')
+            if jarfile.is_file():
+                info.jar = jarfile.name
 
             # classifiers: 'sources', 'javadoc', 'no_aop', 'noaop', 'linux-x86_64'
             for classifier in self.classifiers:
                 files = []
                 for filetype in self.types:
-                    classifier_file = jarfile.replace('.jar', f'-{classifier}.{filetype}')
-                    if Path(classifier_file).is_file():
+                    classifier_file = jarfile.with_name(jarfile.stem + f'-{classifier}.{filetype}')
+                    if classifier_file.is_file():
                         logging.info(f'Found {filetype}: {classifier_file}')
-                        files.append(Path(classifier_file).name)
+                        files.append(classifier_file.name)
                 if len(files) > 0:
                     info.classifiers[classifier] = files
 
@@ -121,14 +126,11 @@ class BaseNexusUploader:
     def _upload_single(self, maven_info):
         raise NotImplementedError
 
-    def upload(self):
-        logging.info(f'Repodirs: {self.m2_path}')
-        maven_info_list = self.m2_maven_info()
-
-        logging.info(f'Uploading content from [{self.m2_path}] to {self.repo_id} repo on {self.repo_url}')
+    def _filtered_maven_versions(self) -> Tuple[int, Dict[str, List[MavenInfo]]]:
+        """filter maven versions by group, artifact, version patterns and version limit for each artifact"""
         total = 0
-        m = {}
-        for maven_info in maven_info_list:
+        artifact_versions = defaultdict(list)
+        for maven_info in self.m2_maven_info():
             # only include specific groups if group regex supplied
             if self.include_group_pattern and not self.include_group_pattern.search(maven_info.group_id):
                 continue
@@ -141,25 +143,28 @@ class BaseNexusUploader:
             if self.include_version_pattern and not self.include_version_pattern.search(maven_info.version):
                 continue
 
-            k = f'{maven_info.group_id}:{maven_info.artifact_id}'
+            maven_artifact_key = f'{maven_info.group_id}:{maven_info.artifact_id}'
 
-            if k not in m:
-                m[k] = []
-            heap = m[k]
-            if self.limit and len(heap) >= self.limit:
-                if heap[0] > MinHeapObj(maven_info):
-                    discarded = maven_info
-                else:
-                    discarded = heapq.heapreplace(heap, MinHeapObj(maven_info)).val
+            minheap = artifact_versions[maven_artifact_key]
+            # use min heap to manipulate the latest k versions,
+            if len(minheap) >= self.limit:
+                discarded = maven_info if maven_info < minheap[0] else heapq.heapreplace(minheap, maven_info)
                 logging.info(f'Discard: {discarded} due to version limits')
             else:
-                heapq.heappush(heap, MinHeapObj(maven_info))
+                heapq.heappush(minheap, maven_info)
                 total += 1
+        return total, artifact_versions
+
+    def upload(self) -> None:
+        """uploads all artifacts in a given m2 repo to a remote nexus repo."""
+        logging.info(f'Repo dirs: {self.m2_path}')
+
+        logging.info(f'Uploading content from [{self.m2_path}] to {self.repo_id} repo on {self.repo_url}')
+        total, artifact_versions = self._filtered_maven_versions()
 
         current = 0
-        for heap in m.values():
-            for obj in heap:
-                maven_info = obj.val
+        for versions in artifact_versions.values():
+            for maven_info in versions:
                 current += 1
                 logging.info(f'\nProcessing: {maven_info}, {current}/{total}')
                 self._upload_single(maven_info)
@@ -173,14 +178,14 @@ class Nexus3Uploader(BaseNexusUploader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _nexus_post_form(self, minfo, files, form_params):
+    def _nexus_post_form(self, minfo: MavenInfo, files, form_params):
         url = '%s/%s?repository=%s' % (self.repo_url, 'service/rest/v1/components', self.repo_id)
         req = requests.post(url, files=files, auth=self.auth, data=form_params)
         if req.status_code > 299:
             logging.error('Error communicating with Nexus! url=' + url + ', code=' + str(
                 req.status_code) + ', msg=' + req.content.decode('utf-8'))
         else:
-            logging.info('Successfully uploaded: %s', self.last_attached_file(files, minfo))
+            logging.info('Successfully uploaded: %s, %s', minfo, [file[1][0] for file in files])
 
     def _artifact_exists(self, artifact_path):
         url = '%s/repository/%s/%s' % (self.repo_url, self.repo_id, artifact_path)
@@ -197,57 +202,45 @@ class Nexus3Uploader(BaseNexusUploader):
             return True
 
     @staticmethod
-    def last_attached_file(files, minfo):
+    def artifact_path(minfo, filename):
         m2_path = '%s/%s/%s' % (minfo.group_id.replace('.', '/'), minfo.artifact_id, minfo.version)
-        return '%s/%s' % (m2_path, files[-1][1][0])
+        return '%s/%s' % (m2_path, filename)
 
-    def _upload_single(self, maven_info):
+    def _upload_single(self, maven_info: MavenInfo):
         def encode_file(basename, num):
             fullpath = maven_info.path / basename
             return f'maven2.asset{num}', (basename, fullpath.open('rb'))
 
-        files = []
-        payload = {'maven2.generate-pom': 'false'}
+        def need_upload(filename):
+            return self.force_upload or not self._artifact_exists(self.artifact_path(maven_info, filename))
 
-        # append file params
-        files.append(encode_file(maven_info.pom, 1))
-        payload.update({'maven2.asset1.extension': 'pom'})
+        # append pom
+        files = [encode_file(maven_info.pom, 1)]
+        payload = {
+            'maven2.generate-pom': 'false',
+            'maven2.asset1.extension': 'pom',
+        }
 
+        # append extension params
         extension_num = 2
 
-        if maven_info.jar is not None:
-            files.append(encode_file(maven_info.jar, 2))
-            last_artifact = self.last_attached_file(files, maven_info)
-            if not self.force_upload and self._artifact_exists(last_artifact):
-                del files[-1]
-            else:
-                payload.update({'maven2.asset2.extension': 'jar'})
-                extension_num += 1
+        if maven_info.jar is not None and need_upload(maven_info.jar):
+            files.append(encode_file(maven_info.jar, extension_num))
+            payload.update({'maven2.asset2.extension': 'jar'})
+            extension_num += 1
 
         for classifier in self.classifiers:
-            if classifier in maven_info.classifiers:
-                for filename in maven_info.classifiers[classifier]:
+            if classifier not in maven_info.classifiers:
+                continue
+            for filename in maven_info.classifiers[classifier]:
+                if need_upload(filename):
                     files.append(encode_file(filename, extension_num))
-                    last_artifact = self.last_attached_file(files, maven_info)
-                    if not self.force_upload and self._artifact_exists(last_artifact):
-                        files.pop()
-                    else:
-                        payload.update({f'maven2.asset{extension_num}.extension': filename.split('.')[-1]})
-                        payload.update({f'maven2.asset{extension_num}.classifier': classifier})
-                        extension_num += 1
-                        logging.info(f'Appended file {filename} num = {extension_num - 1}')
+                    payload.update({f'maven2.asset{extension_num}.extension': filename.split('.')[-1]})
+                    payload.update({f'maven2.asset{extension_num}.classifier': classifier})
+                    extension_num += 1
+                    logging.info(f'Appended file {filename} num = {extension_num - 1}')
 
         self._nexus_post_form(maven_info, files=files, form_params=payload)
-
-
-class MinHeapObj(object):
-    def __init__(self, val): self.val = val
-
-    def __lt__(self, other): return self.val.mtime < other.val.mtime
-
-    def __eq__(self, other): return self.val.mtime == other.val.mtime
-
-    def __str__(self): return str(self.val)
 
 
 def main():
