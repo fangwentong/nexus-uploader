@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(
     name='nexus_uploader',
-    version='0.0.1',
+    version='0.0.2',
     author='fangwentong',
     author_email='fangwentong2012@gmail.com',
     packages=['nexus_uploader'],

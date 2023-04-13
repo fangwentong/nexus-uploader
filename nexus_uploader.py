@@ -73,7 +73,7 @@ class BaseNexusUploader:
                  include_artifact_pattern: Pattern = None, include_group_pattern: Pattern = None,
                  include_version_pattern: Pattern = None, force_upload: bool = False,
                  repo_url: str = None, classifiers: List[str] = None, types: List[str] = None,
-                 limit: int = sys.maxsize):
+                 limit: int = None):
         self.m2_path = Path(m2_path).expanduser()
         self.repo_id = repo_id
         self.auth = HTTPBasicAuth(*auth) if auth is not None else None
@@ -84,7 +84,7 @@ class BaseNexusUploader:
         self.repo_url = repo_url
         self.classifiers = set(classifiers) if classifiers is not None else set()
         self.types = set(types) if types is not None else set()
-        self.limit = limit
+        self.limit = limit if limit is not None else sys.maxsize
 
     @staticmethod
     def list_files(root, file_filter=lambda x: True):
