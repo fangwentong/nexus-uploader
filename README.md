@@ -1,63 +1,45 @@
 # Nexus Uploader
 
-The `nexus-uploader` Python script enables easy uploads of local M2 repositories to a remote Nexus server through a
-single command. The key features include:
+`nexus-uploader` mirrors local Maven M2 repositories to a remote Nexus 3 server with a single command.
 
-- Uploading of common classifiers (sources, javadocs, exe) if available
-- Use of regex include patterns for artifactIds/groupIds/versions
-- Recursive processing of local repo by pointing to the m2 repository root
-- Uploading only missing artifacts on the server (with an option to force upload if needed)
-- Uploading the latest k versions of each artifact, with an option to set the limit (default is no limit)
+## Features
 
-This repository was originally forked
-from [Kshekhovtsova/nexus-uploader.py](https://gist.github.com/Kshekhovtsova/b8c8aca31b58e9f766df449e96ad8d3d)
-and [omnisis/nexus-uploader.py](https://gist.github.com/omnisis/9ecae6baf161d19206a5420bddffe1fc).
+- Uploads POM, JAR, and common classifiers (`sources`, `javadoc`, `no_aop`, `linux-x86_64`, `osx-x86_64`) when present.
+- Filters artifacts with `--include-group`, `--include-artifact`, and `--include-version` regexes.
+- Uploads only missing assets by default (with `--force-upload` to overwrite and `--dry-run` to preview).
+- Keeps only the latest `K` versions per artifact (`--limit K`).
+- Supports credentials via `NEXUS_AUTH` or `NEXUS_USER`/`NEXUS_PASSWORD` environment variables (recommended over
+  `--auth`) and returns non-zero exit codes on authentication or upload failures.
 
 ## Installation
 
-Use the following command to install `nexus-uploader` from this repository:
+Requires Python 3.10+.
 
 ```bash
-pip3 install https://github.com/fangwentong/nexus-uploader/archive/master.zip
+pip install .
+```
+
+For development and tests:
+
+```bash
+pip install -e ".[dev]"
+ruff check .
+pytest -v
 ```
 
 ## Usage
 
-The following command can be used to upload local m2 repositories to a Nexus server:
-
 ```bash
-nexus-uploader repodir1 [repodir2 repodir3] [--repo-url URL] [--repo-id ID] \
-              [--auth USERNAME:PASSWORD] [--include-artifact REGEX] \
-              [--include-group REGEX] [--include-version REGEX] [--force-upload] \
-              [--limit K] [--help]
-```
+export NEXUS_USER=admin
+export NEXUS_PASSWORD=secret
 
-- `repodir`: Specifies the local m2 repository path to upload to Nexus server.
-- `--repo-url`: Specifies the Nexus repo URL, e.g. http://localhost:8081.
-- `--repo-id`: Specifies the repository ID (in Nexus) to upload to.
-- `--auth`: Provides basicauth credentials in Nexus with the form of username:password.
-- `--include-artifact`: Applies the given regex to artifactId.
-- `--include-group`: Applies the given regex to groupId.
-- `--include-version`: Applies the given regex to version.
-- `--force-upload`: Forces upload even if the artifact already exists on the server.
-- `--limit`: Only upload the latest k versions (by mtime) for each artifact, default no limit.
-
-## Example
-
-The following command can be used to upload all artifacts from the local m2 repository to a Nexus server with the
-following configuration:
-
-```bash
 nexus-uploader ~/.m2/repository \
   --repo-url http://localhost:8081 \
   --repo-id maven-releases \
-  --auth admin:admin123 \
-  --include-artifact ".*" \
-  --include-group ".*" \
-  --include-version ".*" \
-  --force-upload
+  --include-group "com\\.example.*" \
+  --dry-run
 ```
 
 ## License
 
-This program is licensed under the MIT License.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.

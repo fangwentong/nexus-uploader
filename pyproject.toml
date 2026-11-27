@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-uploader"
+version = "0.1.0"
+description = "Uploads a local Maven M2 repository to a remote Nexus 3 Server"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "fangwentong", email = "fangwentong2012@gmail.com" }]
+dependencies = [
+    "requests>=2.31.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "ruff==0.17.6",
+]
+
+[project.scripts]
+nexus-uploader = "nexus_uploader:main"
+
+[tool.setuptools]
+py-modules = ["nexus_uploader"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
